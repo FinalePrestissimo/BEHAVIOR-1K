@@ -77,6 +77,18 @@ fi
 [ "$NEW_ENV" = true ] && [ "$CONFIRM_NO_CONDA" = true ] && { echo "ERROR: --new-env and --confirm-no-conda are mutually exclusive"; exit 1; }
 
 WORKDIR=$(pwd)
+PIP_CONSTRAINT_FILE="$WORKDIR/.pip-constraints-behavior.txt"
+
+# Keep core binary compatibility stable across all pip installs.
+cat > "$PIP_CONSTRAINT_FILE" << 'EOF'
+numpy<2
+setuptools<=79
+cffi==1.17.1
+EOF
+export PIP_CONSTRAINT="$PIP_CONSTRAINT_FILE"
+
+# Derive torch CUDA suffix once so all branches can use it.
+CUDA_VER_SHORT=$(echo "$CUDA_VERSION" | sed 's/\.//g')  # e.g. convert 12.6 to 126
 
 # Check conda environment condition early (unless creating new environment)
 if [ "$NEW_ENV" = false ]; then
@@ -225,10 +237,7 @@ if [ "$NEW_ENV" = true ]; then
     # Install PyTorch via pip with CUDA support
     echo "Installing PyTorch with CUDA $CUDA_VERSION support..."
     
-    # Determine the CUDA version string for pip URL (e.g., cu126, cu124, etc.)
-    CUDA_VER_SHORT=$(echo $CUDA_VERSION | sed 's/\.//g')  # e.g. convert 12.6 to 126
-    
-    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu${CUDA_VER_SHORT}
+    pip install torch==2.6.0+cu${CUDA_VER_SHORT} torchvision==0.21.0+cu${CUDA_VER_SHORT} torchaudio==2.6.0+cu${CUDA_VER_SHORT} --index-url https://download.pytorch.org/whl/cu${CUDA_VER_SHORT}
     echo "✓ PyTorch installation completed"
 fi
 # Install BDDL
@@ -259,9 +268,6 @@ if [ "$OMNIGIBSON" = true ]; then
     if [ "$DEV" = true ]; then
         EXTRAS="${EXTRAS}dev,"
     fi
-    if [ "$PRIMITIVES" = true ]; then
-        EXTRAS="${EXTRAS}primitives,"
-    fi
     if [ "$EVAL" = true ]; then
         EXTRAS="${EXTRAS}eval,"
     fi
@@ -270,7 +276,28 @@ if [ "$OMNIGIBSON" = true ]; then
         EXTRAS="[${EXTRAS%,}]"
     fi
 
-    pip install -e "$WORKDIR/OmniGibson$EXTRAS"
+    pip install -c "$PIP_CONSTRAINT_FILE" -e "$WORKDIR/OmniGibson$EXTRAS"
+
+    if [ "$PRIMITIVES" = true ]; then
+        TORCH_CUDA_VERSION=$(python -c "import torch; print(torch.version.cuda or '')")
+        if [ -z "$TORCH_CUDA_VERSION" ]; then
+            echo "ERROR: Unable to detect torch CUDA version. Please install a CUDA-enabled torch build first."
+            exit 1
+        fi
+
+        TORCH_CUDA_MAJOR_MINOR=$(python -c "import torch; v=torch.version.cuda; print('.'.join(v.split('.')[:2]) if v else '')")
+        if [ "$TORCH_CUDA_MAJOR_MINOR" != "$CUDA_VERSION" ]; then
+            echo "ERROR: CUDA mismatch before curobo install: torch CUDA is $TORCH_CUDA_MAJOR_MINOR, but --cuda-version is $CUDA_VERSION"
+            echo "Please align them before installing primitives."
+            echo "Suggested fix: pip install torch==2.6.0+cu${CUDA_VER_SHORT} torchvision==0.21.0+cu${CUDA_VER_SHORT} torchaudio==2.6.0+cu${CUDA_VER_SHORT} --index-url https://download.pytorch.org/whl/cu${CUDA_VER_SHORT}"
+            exit 1
+        fi
+
+        echo "Installing primitives dependencies without build isolation..."
+        pip install -c "$PIP_CONSTRAINT_FILE" "ninja~=1.13.0"
+        pip install -c "$PIP_CONSTRAINT_FILE" "ompl @ https://storage.googleapis.com/gibson_scenes/ompl-1.6.0-cp310-cp310-manylinux_2_28_x86_64.whl"
+        pip install -c "$PIP_CONSTRAINT_FILE" --no-build-isolation "nvidia-curobo @ git+https://github.com/StanfordVL/curobo@cbaf7d32436160956dad190a9465360fad6aba73"
+    fi
 
     # Install pre-commit for dev setup
     if [ "$DEV" = true ]; then
@@ -427,6 +454,12 @@ if [ "$DATASET" = true ]; then
         exit 1
     }
 fi
+
+echo "Checking dependency consistency..."
+pip check || {
+    echo "ERROR: Dependency conflicts detected after installation."
+    exit 1
+}
 
 echo ""
 echo "=== Installation Complete! ==="

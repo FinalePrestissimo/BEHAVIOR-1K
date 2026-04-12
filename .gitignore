@@ -2,7 +2,13 @@ gha-creds-*.json
 /site
 .vscode
 .DS_Store
+**/__pycache__/
 
 # training
 outputs/
 /*.ipynb
+
+# my local environment
+.conda/
+.cache/
+.tmp/
