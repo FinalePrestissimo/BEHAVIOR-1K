@@ -6,8 +6,14 @@ export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 
 export CUDA_VISIBLE_DEVICES=6,7
+# notice: set CUDA_VISIBLE_DEVICES may cause Vulkan device ordering to differ from CUDA, 
+#         which can lead to crashes in Omniverse. 
+#         Unset CUDA_VISIBLE_DEVICES if you encounter such issues.
 
-# conda
+# fix Vulkan reload issue
+export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
+
+# conda and pip
 export CONDA_ENVS_PATH=/mnt/data/shaolong/BEHAVIOR-1K/.conda/envs
 export CONDA_PKGS_DIRS=/mnt/data/shaolong/BEHAVIOR-1K/.conda/pkgs
 export PIP_CACHE_DIR=/mnt/data/shaolong/BEHAVIOR-1K/.cache/pip
