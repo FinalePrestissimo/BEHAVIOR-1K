@@ -9,6 +9,8 @@ outputs/
 /*.ipynb
 
 # my local environment
+**/__pycache__/
 .conda/
 .cache/
 .tmp/
+logs/
