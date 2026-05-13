@@ -33,7 +33,13 @@ export TMP=/mnt/data/shaolong/BEHAVIOR-1K/.tmp
 
 conda activate behavior
 
-export OMNIGIBSON_HEADLESS=1
+# export OMNIGIBSON_HEADLESS=1
+# export OMNIGIBSON_REMOTE_STREAMING=webrtc
+export OMNIGIBSON_REMOTE_STREAMING=websocket
+# WebSocket-only tuning knobs (effective when OMNIGIBSON_REMOTE_STREAMING=websocket)
+# export OMNIGIBSON_WS_FPS=40
+# export OMNIGIBSON_WS_JPEG_QUALITY=92
+export PUBLIC_IP=120.48.128.17
 
 # mkdir -p \
 # 	/mnt/data/shaolong/BEHAVIOR-1K/.conda/envs \
